@@ -199,6 +199,14 @@ classify_game <- function(values_p1, values_p2, row_name_ls, col_name_ls){
 ui <- fluidPage(
   titlePanel("Interactive 2x2 Game Solver"),
   
+  # Description panel just below the title panel
+  div(
+    p("Instructions: Please enter unique numeric values for row and column payoff combinations in the style of row_val, col_val (white space allowed).
+      Feel free to relabel row and column choices to fit the game being modeled.
+      Then check what game type and strategy by selecting 'Solve Game Type.'"),
+    style = "padding: 20px;"  # Add some padding around the text for better spacing
+  ),
+  
   # Custom CSS for matrix styling
   tags$style(type = 'text/css', "
     .matrix-input .form-group {
@@ -222,13 +230,13 @@ ui <- fluidPage(
   ),
   fluidRow(
     column(width = 2, offset = 1, div(textInput("row1_name", label = NULL, value = "A"), class = "matrix-label")),
-    column(width = 3, div(textInput("cell1", label = NULL, placeholder = "Value1, Value2"), class = "matrix-input")),
-    column(width = 3, div(textInput("cell2", label = NULL, placeholder = "Value1, Value2"), class = "matrix-input"))
+    column(width = 3, div(textInput("cell1", label = NULL, placeholder = "row_val1, col_val1"), class = "matrix-input")),
+    column(width = 3, div(textInput("cell2", label = NULL, placeholder = "row_val1, col_val2"), class = "matrix-input"))
   ),
   fluidRow(
     column(width = 2, offset = 1, div(textInput("row2_name", label = NULL, value = "B"), class = "matrix-label")),
-    column(width = 3, div(textInput("cell3", label = NULL, placeholder = "Value1, Value2"), class = "matrix-input")),
-    column(width = 3, div(textInput("cell4", label = NULL, placeholder = "Value1, Value2"), class = "matrix-input"))
+    column(width = 3, div(textInput("cell3", label = NULL, placeholder = "row_val2, col_val1"), class = "matrix-input")),
+    column(width = 3, div(textInput("cell4", label = NULL, placeholder = "row_val2, col_val2"), class = "matrix-input"))
   ),
   
   # Action button to process the matrix
@@ -254,30 +262,58 @@ server <- function(input, output) {
     col_label1 <- input$col1_name
     col_label2 <- input$col2_name
     
-    # Extract the first value before the comma for each cell
-    value1_list <- c(sapply(list(input$cell1, input$cell2, input$cell3, input$cell4), function(cell) {
-      as.numeric(strsplit(cell, ",")[[1]][1] %>% trimws())
-    }))
+    values_clean <- c(sapply(list(input$cell1, input$cell2, input$cell3, input$cell4), function(cell) {
+      gsub("\\s+", "", cell)})) #remove whitespace
     
-    value2_list <- c(sapply(list(input$cell1, input$cell2, input$cell3, input$cell4), function(cell) {
-      as.numeric(strsplit(cell, ",")[[1]][2] %>% trimws())
-    }))
+    values_check <- c(sapply(values_clean, function(cell) {
+      grepl("^[0-9]+,[0-9]+$", cell)}))
     
-    classify_game <- classify_game(value1_list, value2_list, c(row_label1, row_label2), c(col_label1, col_label2))
-    
-    game <- paste0("Game: ",classify_game[1])
-    strategy <- paste0("Strategy: ",classify_game[3])
-    if(classify_game[2]==""){
-      subgame <- ""
+    if(all(values_check)){
+      # Extract the first value before the comma for each cell
+      value1_list <- c(sapply(values_clean, function(cell) {
+        as.numeric(strsplit(cell, ",")[[1]][1] %>% trimws())
+      }))
+      
+      value2_list <- c(sapply(values_clean, function(cell) {
+        as.numeric(strsplit(cell, ",")[[1]][2] %>% trimws())
+      }))
+      
+      #check no tied values (could complicate things)
+      if(length(unique(value1_list))<4 | length(unique(value2_list))<4){
+        rep_message <- ""
+        if(length(unique(value1_list))<4){
+          rep_message <- paste(rep_message," There is repetition in row values.")
+        }
+        if(length(unique(value2_list))<4){
+          rep_message <- paste(rep_message," There is repetition in column values.")
+        }
+        output$result <- renderPrint({
+          HTML(paste(rep_message,"Make sure all 4 row_val and col_val values are unique"))
+        })
+      }
+      else{
+        classify_game <- classify_game(value1_list, value2_list, c(row_label1, row_label2), c(col_label1, col_label2))
+        
+        game <- paste0("Game: ",classify_game[1])
+        strategy <- paste0("Strategy: ",classify_game[3])
+        if(classify_game[2]==""){
+          subgame <- ""
+        }
+        else{
+          subgame <- paste0("Game subcategory: ",classify_game[2])
+        }
+        
+        # Render the list of first values
+        output$result <- renderPrint({
+          HTML(paste(game, subgame, strategy, sep = "<br>"))
+        })
+      }
+      if(!all(values_check)){
+        output$result <- renderPrint({
+          HTML(paste("User input wrong format, please input in format: #,#"))
+        })
+      }
     }
-    else{
-      subgame <- paste0("Game subcategory: ",classify_game[2])
-    }
-    
-    # Render the list of first values
-    output$result <- renderPrint({
-      HTML(paste(game, subgame, strategy, sep = "<br>"))
-    })
   })
 }
 
