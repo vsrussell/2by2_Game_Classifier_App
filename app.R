@@ -64,6 +64,123 @@ find_all_PSNE <- function(values_p1, values_p2){
   return(PSNE)
 }
 
+master_servant_class <- function(values_p1, values_p2, psne, master){
+  game <- ""
+  subgame <- ""
+  strategy <- ""
+  if(master==2){ #if row master
+    if(values_p1[psne]==max(values_p1)){ #if best value for master (row) in psne
+      game <- "Master and Beloved Servant"
+      strategy <- "Timing Irrelevant"
+    }
+    else{ #if best value for master (row) not in psne
+      game <- "Master and Annoying Servant"
+      if(values_p2[psne]==max(values_p2)){ #if "servant" (col) max is in PSNE
+        subgame <- "Market Entry"
+        strategy <- "Both prefer themselves first"
+      }
+      else{ #if servant" (col) max is not in PSNE
+        subgame <- "Apprentice Dilemma"
+        strategy <- "Both prefer Apprentice (Master/Row) first"
+      }
+    }
+  }
+  if(master==1){ #if master is column
+    if(values_p2[psne]==max(values_p2)){ #if best value for master (col) in psne
+      game <- "Master and Beloved Servant"
+      strategy <- "Timing Irrelevant"
+    }
+    else{ #if best value for master (col) not in psne
+      game <- "Master and Annoying Servant"
+      if(values_p1[psne]==max(values_p1)){ #if "servant" (row) max is in PSNE
+        subgame <- "Market Entry"
+        strategy <- "Both prefer themselves first"
+      }
+      else{ #if servant" (col) max is not in PSNE
+        subgame <- "Apprentice Dilemma"
+        strategy <- "Both prefer Apprentice (Master/Col) first"
+      }
+    }
+  }
+  return(c(game, subgame, strategy))
+}
+
+hide_and_seek <- function(values_p1, values_p2){
+    subgame <- ""
+    strategy <- ""
+  
+    max_p1 <- sort(values_p1)[4]
+    max2_p1 <- sort(values_p1)[3]
+    min2_p1 <- sort(values_p1)[2]
+    min_p1 <- sort(values_p1)[1]
+    
+    max_p2 <- sort(values_p2)[4]
+    max2_p2 <- sort(values_p2)[3]
+    min2_p2 <- sort(values_p2)[2]
+    min_p2 <- sort(values_p2)[1]
+    
+    pos_max_p1 <- match(max_p1, values_p1) #position/box
+    pos_max2_p1 <- match(max2_p1, values_p1)
+    pos_min2_p1 <- match(min2_p1, values_p1) #position/box
+    pos_min_p1 <- match(min_p1, values_p1)
+    
+    pos_max_p2 <- match(max_p2, values_p2) #position/box
+    pos_max2_p2 <- match(max2_p2, values_p2)
+    pos_min2_p2 <- match(min2_p2, values_p2) #position/box
+    pos_min_p2 <- match(min_p2, values_p2)
+    
+    #determine if two max for row are in same col
+    row_cares <- FALSE
+    col_cares <- FALSE
+    
+    #check row
+    if(min(values_p1[1], values_p1[3]) > max(values_p1[2], values_p1[4]) | #if top two row values in first col
+       min(values_p1[2], values_p1[4]) > max(values_p1[1], values_p1[3])){ #or second col
+      row_cares <- TRUE
+    }
+    
+    #check col
+    if(min(values_p2[1], values_p2[2]) > max(values_p2[3], values_p2[4]) | #if top two col values in first row
+       min(values_p2[3], values_p2[4]) > max(values_p2[1], values_p2[2])){ #or second row
+       col_cares <- TRUE
+    }
+    
+    if(!(row_cares) & !(col_cares)){ #if p2 maxes not equal to any p1 maxes
+      subgame <- "Cat and Mouse"
+      strategy <- "Both prefer themselves last"
+    }
+    if(row_cares & col_cares){
+      supplier <- which(c(pos_max_p1==pos_min_p2, pos_max_p2==pos_min_p1))
+      if(length(supplier)==1){
+        if(supplier==1){
+          subgame <- "Hold Up"
+          strategy <- "Both want Row/Supplier to move first"
+        }
+        else{
+          subgame <- "Hold Up"
+          strategy <- "Both want Col/Supplier to move first"
+        }
+      }
+    }
+    if(subgame==""){ #if still not classified
+      if(pos_min2_p1==pos_min2_p2){#if third best in same position
+        if(row_cares){
+          subgame <- "Intimidation"
+          strategy <- "Both want Target/Row to move first"
+        }
+        else{
+          subgame <- "Intimidation"
+          strategy <- "Both want Target/Col to move first"
+        }
+      } 
+      else{ #if nothing else this is last option left
+        subgame <- "Staffing Dilemma"
+        strategy <- "Both prefer themselves last"
+      }
+    }
+    return(c(subgame, strategy))
+}
+
 classify_game <- function(values_p1, values_p2, row_name_ls, col_name_ls){
   super_dom_strat <- unlist(check_super_dom(values_p1, values_p2, row_name_ls, col_name_ls))
   dom_strat <- unlist(check_dom(values_p1, values_p2, row_name_ls, col_name_ls))
@@ -72,7 +189,7 @@ classify_game <- function(values_p1, values_p2, row_name_ls, col_name_ls){
   game <- ""
   strategy <- ""
   subgame <- ""
-  
+
   if(!all(is.na(super_dom_strat))){ #if any superdominant strategy find
     if(sum(is.na(super_dom_strat))==1){
       game <- "Immovable Object" #two superdom
@@ -84,17 +201,17 @@ classify_game <- function(values_p1, values_p2, row_name_ls, col_name_ls){
     }
   }
   else{ #move on to dominant if no superdominant strategy
+    # Create an empty 2x2 data frame with specified row and column names
     if(!all(is.na(dom_strat))){ #if any superdominant strategy find
       if(sum(!is.na(dom_strat))>1){
         pos_row <- grep(unlist(check_dom(values_p1, values_p2, row_name_ls, col_name_ls))[1], row_name_ls)
         pos_col <- grep(unlist(check_dom(values_p1, values_p2, row_name_ls, col_name_ls))[2], col_name_ls)
         
-        # Create an empty 2x2 data frame with specified row and column names
         df <- data.frame(Column1 = NA, Column2 = NA)
-        df[1,1] <- toString(list(values_p1[1], values_p2[1]))
-        df[1,2] <- toString(list(values_p1[2], values_p2[2]))
-        df[2,1] <- toString(list(values_p1[3], values_p2[3]))
-        df[2,2] <- toString(list(values_p1[4], values_p2[4]))
+        df[1,1] <- toString(list(values_p1[[1]], values_p2[[1]]))
+        df[1,2] <- toString(list(values_p1[[2]], values_p2[[2]]))
+        df[2,1] <- toString(list(values_p1[[3]], values_p2[[3]]))
+        df[2,2] <- toString(list(values_p1[[4]], values_p2[[4]]))
         
         values <- as.numeric(unlist(strsplit(df[pos_row, pos_col],", ")))
         if(max_row==values[1] & max_col==values[2]){
@@ -110,23 +227,13 @@ classify_game <- function(values_p1, values_p2, row_name_ls, col_name_ls){
           strategy <- "Timing Irrelevant"
         }
       }
-      if(sum(is.na(dom_strat))==1){
+      if(sum(is.na(dom_strat))==1){ #if only one dominant strategy
         psne <- unlist(find_all_PSNE(values_p1, values_p2)) #find PSNE location
-        if(values_p1[psne]==max(values_p1)){ #if best value for master (row) in psne
-          game <- "Master and Beloved Servant"
-          strategy <- "Timing Irrelevant"
-        }
-        else{ #if best value for master (row) not in psne
-          game <- "Master and Annoying Servant"
-          if(values_p2[psne]==max(values_p2)){ #if "servant" (col) max is in PSNE
-            subgame <- "Market Entry"
-            strategy <- "Both prefer themselves first"
-          }
-          else{ #if servant" (col) max is not in PSNE
-            subgame <- "Apprentice Dilemma"
-            strategy <- "Both prefer Apprentice (master) first"
-          }
-        }
+        which_dom <- which(is.na(dom_strat)) #find which is master by dominant strategy
+        master_serv <- master_servant_class(values_p1, values_p2, psne, which_dom) #get master/servant class
+        game <- master_serv[1]
+        subgame <- master_serv[2]
+        strategy <- master_serv[3]
       }
     }
     else{
@@ -147,49 +254,12 @@ classify_game <- function(values_p1, values_p2, row_name_ls, col_name_ls){
       }
       else{
         game <- "Hide and Seek"
-        #test if players two best outcomes at odds
-        max_p1 <- sort(values_p1)[4]
-        max2_p1 <- sort(values_p1)[3]
-        min2_p1 <- sort(values_p1)[2]
-        min_p1 <- sort(values_p1)[1]
-        
-        max_p2 <- sort(values_p2)[4]
-        max2_p2 <- sort(values_p2)[3]
-        min2_p2 <- sort(values_p2)[2]
-        min_p2 <- sort(values_p2)[1]
-        
-        pos_max_p1 <- match(max_p1, values_p1) #position/box
-        pos_max2_p1 <- match(max2_p1, values_p1)
-        pos_min2_p1 <- match(min2_p1, values_p1) #position/box
-        pos_min_p1 <- match(min_p1, values_p1)
-        
-        pos_max_p2 <- match(max_p2, values_p2) #position/box
-        pos_max2_p2 <- match(max2_p2, values_p2)
-        pos_min2_p2 <- match(min2_p2, values_p2) #position/box
-        pos_min_p2 <- match(min_p2, values_p2)
-        
-        
-        if(!(pos_max_p1 %in% c(pos_max_p2, pos_max2_p2)) & !(pos_max2_p1 %in% c(pos_max_p2, pos_max2_p2))){ #if p2 maxes not equal to any p1 maxes
-          subgame <- "Cat and Mouse"
-          strategy <- "Both prefer last"
-        }
-        if(pos_max_p1==pos_max2_p2 & pos_min_p1==pos_max_p2 & pos_max2_p1==pos_min2_p2 & pos_min2_p1==pos_min_p2){
-          subgame <- "Hold Up"
-          strategy <- "Both want Col to move first"
-        }
-        if(subgame==""){ #if still not classified
-          if(pos_min2_p1==pos_min2_p2){#if third best in same position
-            subgame <- "Intimidation"
-            strategy <- "Both want Row to move first"
-          } 
-          else{
-            subgame <- "Staffing Dilemma"
-            strategy <- "Both prefer last"
-          }
+        hide_seek <- hide_and_seek(values_p1, values_p2)
+        subgame <- hide_seek[1]
+        strategy <- hide_seek[2]
         }
       }
     }
-  }
   return(c(game, subgame, strategy))
 }
 
@@ -266,7 +336,7 @@ server <- function(input, output) {
       gsub("\\s+", "", cell)})) #remove whitespace
     
     values_check <- c(sapply(values_clean, function(cell) {
-      grepl("^[0-9]+,[0-9]+$", cell)}))
+      grepl("^-?[0-9]+,-?[0-9]+$", cell)}))
     
     if(all(values_check)){
       # Extract the first value before the comma for each cell
@@ -322,8 +392,4 @@ server <- function(input, output) {
 
 # Run the app
 shinyApp(ui = ui, server = server)
-
-
-
-
 
